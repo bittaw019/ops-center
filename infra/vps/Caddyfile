@@ -1,0 +1,4 @@
+bittax.it, www.bittax.it {
+  encode gzip zstd
+  reverse_proxy app:3000
+}

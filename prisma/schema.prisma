@@ -1,0 +1,289 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleName {
+  ADMIN
+  OPERATOR
+  READ_ONLY
+}
+
+enum Environment {
+  PROD
+  STAGING
+  DEV
+}
+
+enum SiteProvider {
+  GENERIC
+  PLESK
+}
+
+enum ConnectionStatus {
+  UNKNOWN
+  OK
+  FAILED
+}
+
+enum BackupType {
+  FILES
+  DATABASE
+  FULL
+}
+
+enum BackupStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+enum Severity {
+  INFO
+  WARN
+  ERROR
+  CRITICAL
+}
+
+enum EventType {
+  AUTH
+  SITE
+  CONNECTION
+  FILE
+  BACKUP
+  HEALTH
+  SYSTEM
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+}
+
+enum FileOperationType {
+  LIST
+  UPLOAD
+  DOWNLOAD
+  RENAME
+  DELETE
+  MKDIR
+}
+
+model User {
+  id             String          @id @default(cuid())
+  name           String
+  email          String          @unique
+  passwordHash   String
+  role           RoleName        @default(OPERATOR)
+  avatarUrl      String?
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  activities     ActivityLog[]
+  notifications  Notification[]
+  favoriteSites  FavoriteSite[]
+  fileOperations FileOperation[]
+  profile        UserProfile?
+}
+
+model UserProfile {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  timezone      String   @default("Europe/Rome")
+  locale        String   @default("it-IT")
+  theme         String   @default("dark")
+  receiveEmails Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Site {
+  id                    String           @id @default(cuid())
+  name                  String
+  domain                String
+  provider              SiteProvider     @default(GENERIC)
+  environment           Environment
+  rootPath              String
+  notes                 String?
+  databaseBackupCommand String?
+  isArchived            Boolean          @default(false)
+  connectionStatus      ConnectionStatus @default(UNKNOWN)
+  lastSeenAt            DateTime?
+  lastSyncAt            DateTime?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  connection            SiteConnection?
+  backups               Backup[]
+  activities            ActivityLog[]
+  notifications         Notification[]
+  tags                  SiteTag[]
+  healthChecks          HealthCheck[]
+  fileOperations        FileOperation[]
+  releases              ReleaseNote[]
+  maintenanceChecks     MaintenanceCheck[]
+  favoriteBy            FavoriteSite[]
+
+  @@index([isArchived, updatedAt])
+  @@index([connectionStatus, isArchived])
+  @@index([provider, isArchived])
+  @@unique([domain, environment])
+}
+
+model SiteConnection {
+  id                     String   @id @default(cuid())
+  siteId                 String   @unique
+  host                   String
+  port                   Int      @default(22)
+  username               String
+  authType               String   @default("password")
+  encryptedSecret        String
+  encryptedSshKey        String?
+  pleskBaseUrl           String?
+  encryptedPleskApiToken String?
+  pleskSubscriptionId    String?
+  passphraseHint         String?
+  lastTestedAt           DateTime?
+  lastTestResult         Boolean?
+  lastErrorMessage       String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  site                   Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+}
+
+model Backup {
+  id            String       @id @default(cuid())
+  siteId        String
+  type          BackupType
+  status        BackupStatus @default(PENDING)
+  startedAt     DateTime?
+  completedAt   DateTime?
+  storagePath   String?
+  checksum      String?
+  sizeMb        Float?
+  triggerSource String       @default("manual")
+  message       String?
+  restoreReady  Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  site          Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, createdAt])
+  @@index([status, createdAt])
+}
+
+model ActivityLog {
+  id        String    @id @default(cuid())
+  siteId    String?
+  userId    String?
+  severity  Severity  @default(INFO)
+  eventType EventType
+  action    String
+  message   String
+  metadata  Json?
+  createdAt DateTime  @default(now())
+  site      Site?     @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([siteId, createdAt])
+  @@index([eventType, createdAt])
+  @@index([severity, createdAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String?
+  siteId    String?
+  title     String
+  body      String
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  user      User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  site      Site?            @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isRead, createdAt])
+  @@index([siteId, createdAt])
+}
+
+model Tag {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  color     String
+  createdAt DateTime  @default(now())
+  sites     SiteTag[]
+}
+
+model SiteTag {
+  siteId String
+  tagId  String
+  site   Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([siteId, tagId])
+}
+
+model HealthCheck {
+  id         String   @id @default(cuid())
+  siteId     String
+  statusCode Int?
+  latencyMs  Int?
+  isHealthy  Boolean
+  message    String?
+  checkedAt  DateTime @default(now())
+  site       Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+}
+
+model FileOperation {
+  id        String            @id @default(cuid())
+  siteId    String
+  userId    String?
+  operation FileOperationType
+  path      String
+  success   Boolean
+  message   String?
+  createdAt DateTime          @default(now())
+  site      Site              @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  user      User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([siteId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model ReleaseNote {
+  id        String   @id @default(cuid())
+  siteId    String
+  version   String
+  title     String
+  notes     String
+  createdBy String?
+  createdAt DateTime @default(now())
+  site      Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+}
+
+model MaintenanceCheck {
+  id        String   @id @default(cuid())
+  siteId    String
+  title     String
+  isDone    Boolean  @default(false)
+  dueAt     DateTime?
+  doneAt    DateTime?
+  createdAt DateTime @default(now())
+  site      Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+}
+
+model FavoriteSite {
+  userId String
+  siteId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  site   Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@id([userId, siteId])
+}
