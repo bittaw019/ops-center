@@ -73,3 +73,22 @@ export const logFilterSchema = z.object({
   eventType: z.enum(["AUTH", "SITE", "CONNECTION", "FILE", "BACKUP", "HEALTH", "SYSTEM"]).optional(),
   query: z.string().max(100).optional()
 });
+
+export const profileUpdateSchema = z.object({
+  name: z.string().min(2).max(80),
+  email: z.string().email().max(255),
+  timezone: z.string().min(2).max(100),
+  locale: z.string().min(2).max(20),
+  theme: z.enum(["dark", "light"]),
+  receiveEmails: z.boolean()
+});
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(8).max(128),
+    newPassword: z.string().min(10).max(128)
+  })
+  .refine((data) => data.currentPassword !== data.newPassword, {
+    path: ["newPassword"],
+    message: "La nuova password deve essere diversa da quella attuale"
+  });
