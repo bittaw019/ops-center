@@ -1,5 +1,6 @@
 export type ConnectionTestInput = {
   provider: "GENERIC" | "PLESK";
+  connectionProtocol: "SFTP" | "FTP" | "FTPS";
   host: string;
   port: number;
   username: string;

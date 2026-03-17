@@ -1,4 +1,5 @@
-﻿export type FileConnectionInput = {
+export type FileConnectionInput = {
+  connectionProtocol: "SFTP" | "FTP" | "FTPS";
   host: string;
   port: number;
   username: string;

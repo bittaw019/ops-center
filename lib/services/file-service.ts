@@ -23,6 +23,7 @@ export async function performFileOperation(siteId: string, userId: string, input
   const result = await fileAdapter.perform({
     ...parsed.data,
     connection: {
+      connectionProtocol: site.connection.protocol,
       host: site.connection.host,
       port: site.connection.port,
       username: site.connection.username,

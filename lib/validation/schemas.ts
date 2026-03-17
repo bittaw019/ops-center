@@ -16,6 +16,7 @@ const siteBaseSchema = z.object({
   host: z.string().min(2).max(255),
   port: z.number().int().min(1).max(65535),
   username: z.string().min(1).max(255),
+  connectionProtocol: z.enum(["SFTP", "FTP", "FTPS"]).default("SFTP"),
   authType: z.enum(["password", "ssh_key"]),
   secret: z.string().min(2),
   sshKey: z.string().optional().nullable(),
@@ -31,6 +32,14 @@ export const siteSchema = siteBaseSchema.superRefine((data, ctx) => {
       code: z.ZodIssueCode.custom,
       path: ["secret"],
       message: "Per auth ssh_key inserisci la private key completa"
+    });
+  }
+
+  if ((data.connectionProtocol === "FTP" || data.connectionProtocol === "FTPS") && data.authType !== "password") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["authType"],
+      message: "FTP/FTPS supporta solo autenticazione password"
     });
   }
 

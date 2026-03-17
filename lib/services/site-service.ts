@@ -1,4 +1,4 @@
-import { ConnectionStatus, EventType, Prisma, Severity } from "@prisma/client";
+import { ConnectionProtocol, ConnectionStatus, EventType, Prisma, Severity } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { encryptSecret } from "@/lib/utils/crypto";
 import { siteSchema, siteUpdateSchema } from "@/lib/validation/schemas";
@@ -57,6 +57,7 @@ export async function createSite(input: unknown, userId: string) {
             host: data.host,
             port: data.port,
             username: data.username,
+            protocol: data.connectionProtocol,
             authType: data.authType,
             encryptedSecret: encryptSecret(data.secret),
             encryptedSshKey: data.sshKey ? encryptSecret(data.sshKey) : null,
@@ -120,6 +121,7 @@ export async function updateSite(input: unknown, userId: string) {
                   host: data.host,
                   port: data.port,
                   username: data.username,
+                  protocol: data.connectionProtocol,
                   authType: data.authType,
                   encryptedSecret: data.secret ? encryptSecret(data.secret) : undefined,
                   encryptedSshKey: data.sshKey ? encryptSecret(data.sshKey) : null,
@@ -132,6 +134,7 @@ export async function updateSite(input: unknown, userId: string) {
                   host: data.host,
                   port: data.port ?? 22,
                   username: data.username ?? "",
+                  protocol: data.connectionProtocol ?? ConnectionProtocol.SFTP,
                   authType: data.authType ?? "password",
                   encryptedSecret: encryptSecret(data.secret ?? ""),
                   encryptedSshKey: data.sshKey ? encryptSecret(data.sshKey) : null,
@@ -197,8 +200,11 @@ export async function testSiteConnection(siteId: string, userId: string) {
     return { ok: false as const, message: "Connessione non configurata" };
   }
 
+  const protocol = site.connection.protocol;
+
   const result = await connectionAdapter.testConnection({
     provider: site.provider,
+    connectionProtocol: protocol,
     host: site.connection.host,
     port: site.connection.port,
     username: site.connection.username,
@@ -235,7 +241,7 @@ export async function testSiteConnection(siteId: string, userId: string) {
       severity: result.success ? Severity.INFO : Severity.ERROR,
       action: result.success ? "connection.test.ok" : "connection.test.failed",
       message: result.message,
-      metadata: { latencyMs: result.latencyMs, provider: site.provider }
+      metadata: { latencyMs: result.latencyMs, provider: site.provider, protocol }
     }
   });
 

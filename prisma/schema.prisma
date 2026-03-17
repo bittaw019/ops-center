@@ -24,6 +24,12 @@ enum SiteProvider {
   PLESK
 }
 
+enum ConnectionProtocol {
+  SFTP
+  FTP
+  FTPS
+}
+
 enum ConnectionStatus {
   UNKNOWN
   OK
@@ -143,6 +149,7 @@ model SiteConnection {
   host                   String
   port                   Int      @default(22)
   username               String
+  protocol               ConnectionProtocol @default(SFTP)
   authType               String   @default("password")
   encryptedSecret        String
   encryptedSshKey        String?
@@ -287,3 +294,4 @@ model FavoriteSite {
 
   @@id([userId, siteId])
 }
+

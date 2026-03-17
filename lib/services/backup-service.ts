@@ -1,4 +1,4 @@
-﻿import { BackupStatus, BackupType, EventType, Severity } from "@prisma/client";
+import { BackupStatus, BackupType, EventType, Severity } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { backupRequestSchema } from "@/lib/validation/schemas";
 import { RealBackupAdapter } from "@/lib/services/adapters/real/real-backup-adapter";
@@ -22,6 +22,11 @@ export async function runManualBackup(input: unknown, userId: string) {
 
   if (!site.connection) {
     return { ok: false as const, message: "Connessione sito non configurata" };
+  }
+
+  const protocol = site.connection.protocol;
+  if (protocol !== "SFTP") {
+    return { ok: false as const, message: "Backup remoto supportato solo per connessioni SFTP" };
   }
 
   const backup = await prisma.backup.create({

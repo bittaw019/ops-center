@@ -18,6 +18,7 @@ type SiteFormState = {
   host: string;
   port: number;
   username: string;
+  connectionProtocol: "SFTP" | "FTP" | "FTPS";
   authType: "password" | "ssh_key";
   secret: string;
   sshKey: string;
@@ -38,6 +39,7 @@ const initialForm: SiteFormState = {
   host: "",
   port: 22,
   username: "",
+  connectionProtocol: "SFTP",
   authType: "password",
   secret: "",
   sshKey: "",
@@ -53,12 +55,20 @@ const ENV_HINT: Record<SiteFormState["environment"], string> = {
   DEV: "Sviluppo: ambiente tecnico interno."
 };
 
+const PROTOCOL_HINT: Record<SiteFormState["connectionProtocol"], string> = {
+  SFTP: "Consigliato: canale cifrato SSH.",
+  FTP: "FTP non cifrato: usa solo su reti fidate.",
+  FTPS: "FTP su TLS: cifrato, utile dove SFTP non e disponibile."
+};
+
 export function SiteForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [form, setForm] = useState<SiteFormState>(initialForm);
+
+  const ftpMode = form.connectionProtocol === "FTP" || form.connectionProtocol === "FTPS";
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -69,6 +79,7 @@ export function SiteForm() {
     try {
       const payload = {
         ...form,
+        authType: ftpMode ? "password" : form.authType,
         notes: form.notes || null,
         databaseBackupCommand: form.databaseBackupCommand || null,
         sshKey: form.sshKey || null,
@@ -102,7 +113,7 @@ export function SiteForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="panel space-y-5 p-5">
+    <form onSubmit={onSubmit} className="space-y-5">
       <div>
         <h3 className="text-base font-semibold text-slate-100">Aggiungi nuovo sito</h3>
         <p className="text-xs text-slate-400">Compila i dati principali, poi configura accesso server e provider.</p>
@@ -121,7 +132,7 @@ export function SiteForm() {
             <option value="DEV">Sviluppo (DEV)</option>
           </Select>
           <Select value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value as SiteFormState["provider"] })}>
-            <option value="GENERIC">Server generico (SSH/SFTP)</option>
+            <option value="GENERIC">Server generico</option>
             <option value="PLESK">Plesk</option>
           </Select>
         </div>
@@ -139,24 +150,41 @@ export function SiteForm() {
       </section>
 
       <section className="space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Accesso server (SSH/SFTP)</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Accesso server (SFTP/FTP)</p>
         <div className="grid gap-2 md:grid-cols-3">
           <Input placeholder="Host" value={form.host} onChange={(e) => setForm({ ...form, host: e.target.value })} required />
           <Input placeholder="Porta" type="number" value={form.port} onChange={(e) => setForm({ ...form, port: Number(e.target.value) })} required />
           <Input placeholder="Username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required />
         </div>
-        <Select value={form.authType} onChange={(e) => setForm({ ...form, authType: e.target.value as SiteFormState["authType"] })}>
-          <option value="password">Password</option>
-          <option value="ssh_key">Chiave SSH</option>
-        </Select>
+
+        <div className="grid gap-2 md:grid-cols-2">
+          <Select value={form.connectionProtocol} onChange={(e) => setForm({ ...form, connectionProtocol: e.target.value as SiteFormState["connectionProtocol"], authType: (e.target.value === "FTP" || e.target.value === "FTPS") ? "password" : form.authType })}>
+            <option value="SFTP">SFTP (SSH)</option>
+            <option value="FTP">FTP</option>
+            <option value="FTPS">FTPS</option>
+          </Select>
+
+          <Select value={form.authType} onChange={(e) => setForm({ ...form, authType: e.target.value as SiteFormState["authType"] })} disabled={ftpMode}>
+            <option value="password">Password</option>
+            <option value="ssh_key">Chiave SSH</option>
+          </Select>
+        </div>
+
+        <p className="text-xs text-slate-500">{PROTOCOL_HINT[form.connectionProtocol]}</p>
+
         <Input
-          placeholder={form.authType === "password" ? "Password account SSH" : "Private key SSH"}
+          placeholder={form.authType === "password" ? "Password account server" : "Private key SSH"}
           value={form.secret}
           onChange={(e) => setForm({ ...form, secret: e.target.value })}
           required
         />
-        <Input placeholder="Passphrase chiave SSH (opzionale)" value={form.sshKey} onChange={(e) => setForm({ ...form, sshKey: e.target.value })} />
-        <Input placeholder="Hint passphrase (opzionale)" value={form.passphraseHint} onChange={(e) => setForm({ ...form, passphraseHint: e.target.value })} />
+
+        {!ftpMode ? (
+          <>
+            <Input placeholder="Passphrase chiave SSH (opzionale)" value={form.sshKey} onChange={(e) => setForm({ ...form, sshKey: e.target.value })} />
+            <Input placeholder="Hint passphrase (opzionale)" value={form.passphraseHint} onChange={(e) => setForm({ ...form, passphraseHint: e.target.value })} />
+          </>
+        ) : null}
       </section>
 
       {form.provider === "PLESK" ? (

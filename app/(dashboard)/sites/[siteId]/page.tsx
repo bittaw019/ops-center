@@ -35,6 +35,7 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ sit
             <p><span className="text-slate-400">Connessione:</span> <Badge variant={site.connectionStatus === "OK" ? "success" : site.connectionStatus === "FAILED" ? "error" : "warning"}>{site.connectionStatus}</Badge></p>
             <p><span className="text-slate-400">Host:</span> {site.connection?.host ?? "-"}</p>
             <p><span className="text-slate-400">Porta:</span> {site.connection?.port ?? "-"}</p>
+            <p><span className="text-slate-400">Protocollo:</span> {site.connection?.protocol ?? "SFTP"}</p>
             <p><span className="text-slate-400">Username:</span> {site.connection?.username ?? "-"}</p>
             <p><span className="text-slate-400">Plesk URL:</span> {site.connection?.pleskBaseUrl ?? "-"}</p>
             <p><span className="text-slate-400">Ultimo test:</span> {formatDate(site.connection?.lastTestedAt)}</p>
@@ -71,6 +72,7 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ sit
                   host: site.connection.host,
                   port: site.connection.port,
                   username: site.connection.username,
+                  connectionProtocol: site.connection.protocol,
                   authType: site.connection.authType as "password" | "ssh_key",
                   pleskBaseUrl: site.connection.pleskBaseUrl,
                   pleskSubscriptionId: site.connection.pleskSubscriptionId

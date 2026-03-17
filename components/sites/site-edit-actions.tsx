@@ -21,6 +21,7 @@ type SiteEditActionsProps = {
       host: string;
       port: number;
       username: string;
+      connectionProtocol: "SFTP" | "FTP" | "FTPS";
       authType: "password" | "ssh_key";
       pleskBaseUrl: string | null;
       pleskSubscriptionId: string | null;
@@ -46,6 +47,7 @@ export function SiteEditActions({ siteId, initial }: SiteEditActionsProps) {
   const [host, setHost] = useState(initial.connection?.host ?? "");
   const [port, setPort] = useState(initial.connection?.port ?? 22);
   const [username, setUsername] = useState(initial.connection?.username ?? "");
+  const [connectionProtocol, setConnectionProtocol] = useState<"SFTP" | "FTP" | "FTPS">(initial.connection?.connectionProtocol ?? "SFTP");
   const [authType, setAuthType] = useState<"password" | "ssh_key">(initial.connection?.authType ?? "password");
   const [secret, setSecret] = useState("");
   const [sshKey, setSshKey] = useState("");
@@ -53,6 +55,8 @@ export function SiteEditActions({ siteId, initial }: SiteEditActionsProps) {
   const [pleskBaseUrl, setPleskBaseUrl] = useState(initial.connection?.pleskBaseUrl ?? "");
   const [pleskSubscriptionId, setPleskSubscriptionId] = useState(initial.connection?.pleskSubscriptionId ?? "");
   const [pleskApiToken, setPleskApiToken] = useState("");
+
+  const ftpMode = connectionProtocol === "FTP" || connectionProtocol === "FTPS";
 
   async function handleUpdate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -75,7 +79,8 @@ export function SiteEditActions({ siteId, initial }: SiteEditActionsProps) {
         payload.host = host;
         payload.port = port;
         payload.username = username;
-        payload.authType = authType;
+        payload.connectionProtocol = connectionProtocol;
+        payload.authType = ftpMode ? "password" : authType;
         payload.secret = secret;
         payload.sshKey = sshKey || null;
         payload.passphraseHint = passphraseHint || null;
@@ -144,12 +149,12 @@ export function SiteEditActions({ siteId, initial }: SiteEditActionsProps) {
       <Input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="Dominio" required />
 
       <div className="grid gap-2 sm:grid-cols-2">
-        <Select value={environment} onChange={(e) => setEnvironment(e.target.value as "PROD" | "STAGING" | "DEV")}> 
+        <Select value={environment} onChange={(e) => setEnvironment(e.target.value as "PROD" | "STAGING" | "DEV")}>
           <option value="PROD">Produzione (PROD)</option>
           <option value="STAGING">Staging (STAGING)</option>
           <option value="DEV">Sviluppo (DEV)</option>
         </Select>
-        <Select value={provider} onChange={(e) => setProvider(e.target.value as "GENERIC" | "PLESK")}> 
+        <Select value={provider} onChange={(e) => setProvider(e.target.value as "GENERIC" | "PLESK")}>
           <option value="GENERIC">Server generico</option>
           <option value="PLESK">Plesk</option>
         </Select>
@@ -182,10 +187,18 @@ export function SiteEditActions({ siteId, initial }: SiteEditActionsProps) {
             <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" required={updateConnection} />
           </div>
 
-          <Select value={authType} onChange={(e) => setAuthType(e.target.value as "password" | "ssh_key")}> 
-            <option value="password">Password</option>
-            <option value="ssh_key">SSH Key</option>
-          </Select>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Select value={connectionProtocol} onChange={(e) => { const p = e.target.value as "SFTP" | "FTP" | "FTPS"; setConnectionProtocol(p); if (p !== "SFTP") setAuthType("password"); }}>
+              <option value="SFTP">SFTP (SSH)</option>
+              <option value="FTP">FTP</option>
+              <option value="FTPS">FTPS</option>
+            </Select>
+
+            <Select value={authType} onChange={(e) => setAuthType(e.target.value as "password" | "ssh_key")} disabled={ftpMode}>
+              <option value="password">Password</option>
+              <option value="ssh_key">SSH Key</option>
+            </Select>
+          </div>
 
           <Input
             value={secret}
@@ -193,8 +206,13 @@ export function SiteEditActions({ siteId, initial }: SiteEditActionsProps) {
             placeholder={authType === "password" ? "Nuova password" : "Nuova private key"}
             required={updateConnection}
           />
-          <Input value={sshKey} onChange={(e) => setSshKey(e.target.value)} placeholder="Passphrase (opzionale)" />
-          <Input value={passphraseHint} onChange={(e) => setPassphraseHint(e.target.value)} placeholder="Passphrase hint (opzionale)" />
+
+          {!ftpMode ? (
+            <>
+              <Input value={sshKey} onChange={(e) => setSshKey(e.target.value)} placeholder="Passphrase (opzionale)" />
+              <Input value={passphraseHint} onChange={(e) => setPassphraseHint(e.target.value)} placeholder="Passphrase hint (opzionale)" />
+            </>
+          ) : null}
 
           {provider === "PLESK" ? (
             <>

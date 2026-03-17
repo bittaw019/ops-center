@@ -1,3 +1,4 @@
+import { Client as FtpClient } from "basic-ftp";
 import SftpClient from "ssh2-sftp-client";
 import { decryptSecret } from "@/lib/utils/crypto";
 import type { ConnectionAdapter, ConnectionTestInput, ConnectionTestResult } from "@/lib/services/adapters/contracts/connection-adapter";
@@ -63,7 +64,7 @@ async function testPleskApi(input: ConnectionTestInput): Promise<ConnectionTestR
 
     return {
       success: true,
-      message: "Connessione Plesk API riuscita",
+      message: "Plesk API raggiungibile",
       latencyMs: Date.now() - started
     };
   } catch (error) {
@@ -76,32 +77,94 @@ async function testPleskApi(input: ConnectionTestInput): Promise<ConnectionTestR
   }
 }
 
+async function testSftpConnection(input: ConnectionTestInput): Promise<ConnectionTestResult> {
+  const started = Date.now();
+  const client = new SftpClient();
+
+  try {
+    await client.connect(toSshConfig(input));
+    await client.cwd();
+
+    return {
+      success: true,
+      message: "Connessione SFTP riuscita",
+      latencyMs: Date.now() - started
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Errore connessione SFTP"
+    };
+  } finally {
+    await client.end().catch(() => undefined);
+  }
+}
+
+async function testFtpConnection(input: ConnectionTestInput): Promise<ConnectionTestResult> {
+  if (input.authType !== "password") {
+    return { success: false, message: "FTP/FTPS supporta solo auth password" };
+  }
+
+  const started = Date.now();
+  const client = new FtpClient(12000);
+
+  try {
+    await client.access({
+      host: input.host,
+      port: input.port,
+      user: input.username,
+      password: decryptSecret(input.encryptedSecret),
+      secure: input.connectionProtocol === "FTPS"
+    });
+
+    await client.list();
+
+    return {
+      success: true,
+      message: input.connectionProtocol === "FTPS" ? "Connessione FTPS riuscita" : "Connessione FTP riuscita",
+      latencyMs: Date.now() - started
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Errore connessione FTP/FTPS"
+    };
+  } finally {
+    client.close();
+  }
+}
+
+async function testTransferConnection(input: ConnectionTestInput): Promise<ConnectionTestResult> {
+  if (input.connectionProtocol === "SFTP") {
+    return testSftpConnection(input);
+  }
+
+  return testFtpConnection(input);
+}
+
 export class RealConnectionAdapter implements ConnectionAdapter {
   async testConnection(input: ConnectionTestInput): Promise<ConnectionTestResult> {
     if (input.provider === "PLESK") {
-      return testPleskApi(input);
-    }
+      const apiResult = await testPleskApi(input);
+      if (!apiResult.success) {
+        return apiResult;
+      }
 
-    const started = Date.now();
-    const client = new SftpClient();
-
-    try {
-      await client.connect(toSshConfig(input));
-      await client.cwd();
+      const transferResult = await testTransferConnection(input);
+      if (!transferResult.success) {
+        return {
+          success: false,
+          message: `API Plesk ok, ma connessione ${input.connectionProtocol} fallita: ${transferResult.message}`
+        };
+      }
 
       return {
         success: true,
-        message: "Connessione SSH/SFTP riuscita",
-        latencyMs: Date.now() - started
+        message: `Plesk API e ${input.connectionProtocol} raggiungibili`,
+        latencyMs: transferResult.latencyMs
       };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Errore di connessione";
-      return {
-        success: false,
-        message
-      };
-    } finally {
-      await client.end().catch(() => undefined);
     }
+
+    return testTransferConnection(input);
   }
 }
